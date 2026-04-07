@@ -187,7 +187,7 @@ async def create_environment() -> SmartIrrigationEnv:
         await env.connect()
         return env
 
-    image_name = IMAGE_NAME or "smart-irrigation-env:latest"
+    image_name = IMAGE_NAME or "smart-irrigation:latest"
     return await SmartIrrigationEnv.from_docker_image(image_name)
 
 

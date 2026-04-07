@@ -6,6 +6,6 @@
 
 """Smart irrigation server components."""
 
-from .venv_environment import SmartIrrigationEnvironment
+from .smart_irrigation_environment import SmartIrrigationEnvironment
 
 __all__ = ["SmartIrrigationEnvironment"]

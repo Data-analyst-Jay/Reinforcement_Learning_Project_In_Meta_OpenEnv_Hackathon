@@ -9,7 +9,7 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "openenv-smart-irrigation"
+name = "smart-irrigation"
 version = "0.1.0"
 description = "Smart irrigation environment for OpenEnv"
 requires-python = ">=3.10"
@@ -37,10 +37,9 @@ dev = [
 
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server
-# or: python -m venv.server.app
-server = "venv.server.app:main"
+server = "smart_irrigation.server.app:main"
 
 [tool.setuptools]
 include-package-data = true
-packages = ["venv", "venv.server"]
-package-dir = { "venv" = ".", "venv.server" = "server" }
+packages = ["smart_irrigation", "smart_irrigation.server"]
+package-dir = { "smart_irrigation" = ".", "smart_irrigation.server" = "server" }

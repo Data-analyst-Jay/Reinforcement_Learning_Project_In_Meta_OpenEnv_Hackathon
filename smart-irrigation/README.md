@@ -91,13 +91,13 @@ python inference.py
 ## Build Docker Image
 
 ```bash
-docker build -t smart-irrigation-env:latest .
+docker build -t smart-irrigation:latest .
 ```
 
 ## Project Structure
 
 ```text
-venv/
+smart-irrigation/
 |-- __init__.py
 |-- client.py
 |-- Dockerfile
@@ -111,5 +111,5 @@ venv/
     |-- __init__.py
     |-- app.py
     |-- requirements.txt
-    `-- venv_environment.py
+    `-- smart_irrigation_environment.py
 ```

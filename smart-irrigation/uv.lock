@@ -1599,7 +1599,7 @@ core = [
 ]
 
 [[package]]
-name = "openenv-venv"
+name = "smart-irrigation"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
