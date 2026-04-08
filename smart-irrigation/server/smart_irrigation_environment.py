@@ -56,6 +56,7 @@ class SmartIrrigationEnvironment(
     WATER_COSTS = [0.0, 1.0, 2.0, 3.0]
     RAW_REWARD_MIN = -41.0
     RAW_REWARD_MAX = 14.0
+    REWARD_EPSILON = 0.01
 
     def __init__(self) -> None:
         """Initialize the environment and its random generator."""
@@ -73,7 +74,7 @@ class SmartIrrigationEnvironment(
         self._crop_stage = 0.0
         self._water_remaining: float | None = None
         self._total_water_used = 0.0
-        self._last_reward = 0.0
+        self._last_reward = self.REWARD_EPSILON
         self._last_irrigation_level = 0
         self._update_state()
 
@@ -118,13 +119,13 @@ class SmartIrrigationEnvironment(
             else None
         )
         self._total_water_used = 0.0
-        self._last_reward = 0.0
+        self._last_reward = self.REWARD_EPSILON
         self._last_irrigation_level = 0
         self._set_rain_signal()
         self._update_state()
 
         return self._build_observation(
-            reward=0.0,
+            reward=self._last_reward,
             done=False,
             metadata={
                 "message": f"Smart irrigation environment ready in {self._difficulty} mode.",
@@ -259,12 +260,12 @@ class SmartIrrigationEnvironment(
         return reward
 
     def _normalize_reward(self, raw_reward: float) -> float:
-        """Map the raw reward into the required 0 to 1 range."""
+        """Map the raw reward into a strict interior range for graders and logs."""
         return self._clamp(
             (raw_reward - self.RAW_REWARD_MIN)
             / (self.RAW_REWARD_MAX - self.RAW_REWARD_MIN),
-            0.0,
-            1.0,
+            self.REWARD_EPSILON,
+            1.0 - self.REWARD_EPSILON,
         )
 
     def _update_weather(self) -> None:

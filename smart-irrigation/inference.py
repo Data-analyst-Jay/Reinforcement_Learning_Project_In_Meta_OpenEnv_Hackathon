@@ -38,7 +38,7 @@ TASK_NAME = os.getenv("TASK_NAME", "smart-irrigation")
 BENCHMARK = os.getenv("BENCHMARK", "smart-irrigation")
 REQUESTED_DIFFICULTY = os.getenv("DIFFICULTY", os.getenv("SCENARIO", "easy"))
 MAX_STEPS = int(os.getenv("MAX_STEPS", "20"))
-SUCCESS_THRESHOLD = float(os.getenv("SUCCESS_THRESHOLD", "0.0"))
+SUCCESS_THRESHOLD = float(os.getenv("SUCCESS_THRESHOLD", "0.80"))
 ACTION_WATER_COSTS = [0, 1, 2, 3]
 
 SYSTEM_PROMPT = textwrap.dedent(
@@ -102,6 +102,15 @@ def log_end(success: bool, steps: int, rewards: List[float]) -> None:
         f"[END] success={str(success).lower()} steps={steps} rewards={rewards_value}",
         flush=True,
     )
+
+
+def episode_succeeds(rewards: List[float]) -> bool:
+    """Treat success as sustained episode quality, not merely nonnegative reward."""
+    if not rewards:
+        return False
+
+    average_reward = sum(rewards) / len(rewards)
+    return average_reward >= SUCCESS_THRESHOLD
 
 
 def max_available_action(observation: SmartIrrigationObservation) -> int:
@@ -245,7 +254,7 @@ async def main() -> None:
             if result.done:
                 break
 
-        success = sum(rewards) >= SUCCESS_THRESHOLD
+        success = episode_succeeds(rewards)
     finally:
         try:
             await env.close()
