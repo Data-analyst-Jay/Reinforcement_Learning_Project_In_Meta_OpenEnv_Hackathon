@@ -1,5 +1,12 @@
 ---
 title: Smart Irrigation Environment Server
+colorFrom: green
+colorTo: blue
+sdk: docker
+app_port: 8000
+base_path: /web
+pinned: false
+tags:
   - openenv
   - reinforcement-learning
   - agriculture
