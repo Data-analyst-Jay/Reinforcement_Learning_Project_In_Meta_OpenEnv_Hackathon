@@ -30,7 +30,14 @@ app = create_app(
 )
 
 
-def main(host: str = "0.0.0.0", port: int = 8000):
+def run_server(host: str = "0.0.0.0", port: int = 8000) -> None:
+    """Run the FastAPI server with the provided network settings."""
+    import uvicorn
+
+    uvicorn.run(app, host=host, port=port)
+
+
+def main() -> None:
     """
     Entry point for direct execution via uv run or python -m.
 
@@ -38,23 +45,18 @@ def main(host: str = "0.0.0.0", port: int = 8000):
         uv run --project . server
         uv run --project . server --port 8001
 
-    Args:
-        host: Host address to bind to (default: "0.0.0.0")
-        port: Port number to listen on (default: 8000)
-
     For production deployments, consider using uvicorn directly with
     multiple workers:
         uvicorn server.app:app --workers 4
     """
-    import uvicorn
-
-    uvicorn.run(app, host=host, port=port)
-
-
-if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
-    main(port=args.port)
+    run_server(host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    main()
