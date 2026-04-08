@@ -11,11 +11,18 @@ from typing import Any, Dict, Optional
 from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 
-from .models import (
-    SmartIrrigationAction,
-    SmartIrrigationObservation,
-    SmartIrrigationState,
-)
+try:
+    from .models import (
+        SmartIrrigationAction,
+        SmartIrrigationObservation,
+        SmartIrrigationState,
+    )
+except ImportError:
+    from models import (
+        SmartIrrigationAction,
+        SmartIrrigationObservation,
+        SmartIrrigationState,
+    )
 
 
 class SmartIrrigationEnv(
@@ -32,6 +39,22 @@ class SmartIrrigationEnv(
     raw JSON messages into typed irrigation action, observation, and state objects.
     """
 
+    DIFFICULTY_ALIASES = {
+        "easy": "easy",
+        "medium": "medium",
+        "hard": "difficult",
+        "difficult": "difficult",
+    }
+
+    @classmethod
+    def normalize_difficulty(cls, difficulty: str) -> str:
+        """Map common aliases to the server's canonical difficulty names."""
+        normalized = difficulty.strip().lower()
+        if normalized not in cls.DIFFICULTY_ALIASES:
+            allowed = ", ".join(sorted(cls.DIFFICULTY_ALIASES))
+            raise ValueError(f"difficulty must be one of: {allowed}.")
+        return cls.DIFFICULTY_ALIASES[normalized]
+
     async def reset(
         self,
         difficulty: str = "easy",
@@ -40,9 +63,9 @@ class SmartIrrigationEnv(
     ) -> StepResult[SmartIrrigationObservation]:
         """Reset the environment and optionally choose a difficulty mode."""
         reset_kwargs: Dict[str, Any] = dict(kwargs)
-        reset_kwargs["difficulty"] = difficulty
+        reset_kwargs["difficulty"] = self.normalize_difficulty(difficulty)
         if scenario is not None:
-            reset_kwargs["scenario"] = scenario
+            reset_kwargs["scenario"] = self.normalize_difficulty(scenario)
         return await super().reset(**reset_kwargs)
 
     def _step_payload(self, action: SmartIrrigationAction) -> Dict[str, Any]:

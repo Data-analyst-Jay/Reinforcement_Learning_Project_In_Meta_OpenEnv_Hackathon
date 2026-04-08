@@ -307,8 +307,12 @@ class SmartIrrigationEnvironment(
     def _resolve_difficulty(self, difficulty: str) -> DifficultyName:
         """Validate the requested scenario difficulty."""
         normalized = difficulty.strip().lower()
+        if normalized == "hard":
+            normalized = "difficult"
         if normalized not in {"easy", "medium", "difficult"}:
-            raise ValueError("difficulty must be one of: easy, medium, difficult.")
+            raise ValueError(
+                "difficulty must be one of: easy, medium, hard, difficult."
+            )
         return normalized  # type: ignore[return-value]
 
     def _uses_water_budget(self) -> bool:

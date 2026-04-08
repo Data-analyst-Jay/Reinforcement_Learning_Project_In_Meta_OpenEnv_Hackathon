@@ -16,7 +16,7 @@ except Exception as e:  # pragma: no cover
 try:
     from ..models import SmartIrrigationAction, SmartIrrigationObservation
     from .smart_irrigation_environment import SmartIrrigationEnvironment
-except ModuleNotFoundError:
+except ImportError:
     from models import SmartIrrigationAction, SmartIrrigationObservation
     from server.smart_irrigation_environment import SmartIrrigationEnvironment
 

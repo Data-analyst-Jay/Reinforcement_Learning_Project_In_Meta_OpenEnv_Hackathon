@@ -9,7 +9,7 @@ Required environment variables:
 Optional environment variables:
 - IMAGE_NAME or LOCAL_IMAGE_NAME for Docker-based startup
 - ENV_BASE_URL to connect to an already-running environment server
-- DIFFICULTY to choose easy, medium, or difficult
+- DIFFICULTY to choose easy, medium, hard, or difficult
 """
 
 from __future__ import annotations
@@ -22,11 +22,11 @@ from typing import List, Optional
 from openai import OpenAI
 
 try:
-    from client import SmartIrrigationEnv
-    from models import SmartIrrigationAction, SmartIrrigationObservation
-except ModuleNotFoundError:
     from .client import SmartIrrigationEnv
     from .models import SmartIrrigationAction, SmartIrrigationObservation
+except ImportError:
+    from client import SmartIrrigationEnv
+    from models import SmartIrrigationAction, SmartIrrigationObservation
 
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
@@ -36,7 +36,7 @@ IMAGE_NAME = os.getenv("IMAGE_NAME") or os.getenv("LOCAL_IMAGE_NAME")
 ENV_BASE_URL = os.getenv("ENV_BASE_URL")
 TASK_NAME = os.getenv("TASK_NAME", "smart-irrigation")
 BENCHMARK = os.getenv("BENCHMARK", "smart-irrigation")
-DIFFICULTY = os.getenv("DIFFICULTY", os.getenv("SCENARIO", "easy")).lower()
+REQUESTED_DIFFICULTY = os.getenv("DIFFICULTY", os.getenv("SCENARIO", "easy"))
 MAX_STEPS = int(os.getenv("MAX_STEPS", "20"))
 SUCCESS_THRESHOLD = float(os.getenv("SUCCESS_THRESHOLD", "0.0"))
 ACTION_WATER_COSTS = [0, 1, 2, 3]
@@ -59,6 +59,24 @@ SYSTEM_PROMPT = textwrap.dedent(
     Reply with only one digit: 0, 1, 2, or 3.
     """
 ).strip()
+
+
+def normalize_difficulty(difficulty: str) -> str:
+    """Accept common aliases and return the canonical server difficulty."""
+    difficulty_aliases = {
+        "easy": "easy",
+        "medium": "medium",
+        "hard": "difficult",
+        "difficult": "difficult",
+    }
+    normalized = difficulty.strip().lower()
+    if normalized not in difficulty_aliases:
+        allowed = ", ".join(sorted(difficulty_aliases))
+        raise ValueError(f"DIFFICULTY must be one of: {allowed}.")
+    return difficulty_aliases[normalized]
+
+
+DIFFICULTY = normalize_difficulty(REQUESTED_DIFFICULTY)
 
 
 def log_start(task: str, env: str, model: str, difficulty: str) -> None:
@@ -235,5 +253,10 @@ async def main() -> None:
             log_end(success=success, steps=steps_taken, rewards=rewards)
 
 
-if __name__ == "__main__":
+def run() -> None:
+    """Synchronous entry point for direct script and console execution."""
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    run()

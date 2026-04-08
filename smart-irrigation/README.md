@@ -21,7 +21,8 @@ The agent acts like an irrigation controller. On each step it chooses one
 irrigation level. The environment then updates soil moisture, humidity,
 temperature, rain conditions, crop stage, and an optional water budget. The
 environment supports three toggleable scenarios named `easy`, `medium`, and
-`difficult`.
+`difficult`. The inference client also accepts `hard` and normalizes it to the
+canonical `difficult` mode expected by the server.
 
 ## Main Components
 
@@ -75,7 +76,14 @@ Start the API server:
 uvicorn server.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Run the inference script:
+Run the inference script in the same package-oriented style used by
+submission tooling:
+
+```bash
+uv run --project . python -m smart_irrigation.inference
+```
+
+You can also run the file directly for local debugging:
 
 ```bash
 python inference.py
@@ -85,7 +93,16 @@ Choose a scenario:
 
 ```powershell
 $env:DIFFICULTY = "medium"
-python inference.py
+uv run --project . python -m smart_irrigation.inference
+```
+
+Accepted difficulty values: `easy`, `medium`, `hard`, `difficult`.
+
+Optional script entry points after `uv sync`:
+
+```bash
+uv run --project . inference
+uv run --project . server
 ```
 
 ## Build Docker Image
@@ -93,6 +110,23 @@ python inference.py
 ```bash
 docker build -t smart-irrigation:latest .
 ```
+
+## Submission Checklist Notes
+
+Verified in this repository:
+
+- `inference.py` exists at the project root.
+- The inference client uses the OpenAI client.
+- Structured `[START]`, `[STEP]`, and `[END]` logs are emitted.
+- Rewards are normalized to the `0.0` to `1.0` range.
+- `openenv.yaml` and `Dockerfile` are present.
+
+Still requires external validation before submission:
+
+- HF Space deployment returning HTTP 200 and responding to `reset()`.
+- Docker build in the submission environment.
+- Pre-submission validator run.
+- Hosted grader runs across all tasks.
 
 ## Project Structure
 

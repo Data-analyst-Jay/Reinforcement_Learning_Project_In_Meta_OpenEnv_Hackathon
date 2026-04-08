@@ -1,2 +1,3 @@
 [console_scripts]
+inference = smart_irrigation.inference:run
 server = smart_irrigation.server.app:main

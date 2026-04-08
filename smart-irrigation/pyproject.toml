@@ -38,6 +38,7 @@ dev = [
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server
 server = "smart_irrigation.server.app:main"
+inference = "smart_irrigation.inference:run"
 
 [tool.setuptools]
 include-package-data = true
