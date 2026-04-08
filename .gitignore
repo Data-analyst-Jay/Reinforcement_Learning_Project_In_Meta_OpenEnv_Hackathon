@@ -1,3 +1,4 @@
 .env
 .venv/
-smart_irrigation_system.egg-info/
+smart_irrigation.egg-info/
+__pycache__/
