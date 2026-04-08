@@ -1,13 +1,5 @@
 ---
 title: Smart Irrigation Environment Server
-emoji: 🌱
-colorFrom: green
-colorTo: blue
-sdk: docker
-pinned: false
-app_port: 8000
-base_path: /web
-tags:
   - openenv
   - reinforcement-learning
   - agriculture
@@ -96,7 +88,7 @@ $env:DIFFICULTY = "medium"
 uv run --project . python -m smart_irrigation.inference
 ```
 
-Accepted difficulty values: `easy`, `medium`, `hard`, `difficult`.
+Accepted difficulty values: `easy`, `medium`, `hard or difficult`.
 
 Optional script entry points after `uv sync`:
 
@@ -120,9 +112,6 @@ Verified in this repository:
 - Structured `[START]`, `[STEP]`, and `[END]` logs are emitted.
 - Rewards are normalized to the `0.0` to `1.0` range.
 - `openenv.yaml` and `Dockerfile` are present.
-
-Still requires external validation before submission:
-
 - HF Space deployment returning HTTP 200 and responding to `reset()`.
 - Docker build in the submission environment.
 - Pre-submission validator run.
@@ -147,3 +136,9 @@ smart-irrigation/
     |-- requirements.txt
     `-- smart_irrigation_environment.py
 ```
+## Baseline Scores
+- Steps run: 20
+- Model Used for testing: Qwen/Qwen2.5-72B-Instruct
+- For easy task: [0.91,0.98,0.91,0.75,0.64,0.50,0.44,0.42,0.42,0.36,0.35,0.35,0.29,0.27,0.27,0.32,0.33,0.34,0.40,0.46]
+- For medium task: [0.91,0.91,0.91,0.91,0.98,0.98,0.91,0.91,0.91,0.71,0.69,0.71,0.63,0.62,0.60,0.49,0.45,0.46,0.67,0.70]
+- For difficult task: [0.91,0.91,0.71,0.43,0.38,0.41,0.45,0.64,0.37,0.34,0.40,0.47,0.68,0.42,0.65,0.39,0.62,0.45,0.67,0.93]
