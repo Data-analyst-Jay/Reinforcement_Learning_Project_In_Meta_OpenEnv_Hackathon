@@ -9,7 +9,9 @@ Required environment variables:
 Optional environment variables:
 - IMAGE_NAME or LOCAL_IMAGE_NAME for Docker-based startup
 - ENV_BASE_URL to connect to an already-running environment server
-- DIFFICULTY to choose easy, medium, hard, or difficult
+
+This script always evaluates the agent across all three task difficulties
+in order: easy, medium, and hard (canonical server name: difficult).
 """
 
 from __future__ import annotations
@@ -36,8 +38,7 @@ IMAGE_NAME = os.getenv("IMAGE_NAME") or os.getenv("LOCAL_IMAGE_NAME")
 ENV_BASE_URL = os.getenv("ENV_BASE_URL")
 TASK_NAME = os.getenv("TASK_NAME", "smart-irrigation")
 BENCHMARK = os.getenv("BENCHMARK", "smart-irrigation")
-REQUESTED_DIFFICULTY = os.getenv("DIFFICULTY", os.getenv("SCENARIO", "easy"))
-MAX_STEPS = int(os.getenv("MAX_STEPS", "20"))
+MAX_STEPS = int(os.getenv("MAX_STEPS", "5"))
 SUCCESS_THRESHOLD = float(os.getenv("SUCCESS_THRESHOLD", "0.80"))
 ACTION_WATER_COSTS = [0, 1, 2, 3]
 
@@ -76,7 +77,9 @@ def normalize_difficulty(difficulty: str) -> str:
     return difficulty_aliases[normalized]
 
 
-DIFFICULTY = normalize_difficulty(REQUESTED_DIFFICULTY)
+EPISODE_DIFFICULTIES = [
+    normalize_difficulty(difficulty) for difficulty in ("easy", "medium", "hard")
+]
 
 
 def log_start(task: str, env: str, model: str, difficulty: str) -> None:
@@ -218,18 +221,20 @@ async def create_environment() -> SmartIrrigationEnv:
     return await SmartIrrigationEnv.from_docker_image(image_name)
 
 
-async def main() -> None:
-    llm_client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN or "missing-token")
-    env = await create_environment()
-
+async def run_episode(
+    env: SmartIrrigationEnv,
+    llm_client: OpenAI,
+    difficulty: str,
+) -> None:
+    """Run one full task episode and emit a complete START/STEP/END log block."""
     rewards: List[float] = []
     steps_taken = 0
     success = False
 
-    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME, difficulty=DIFFICULTY)
+    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME, difficulty=difficulty)
 
     try:
-        result = await env.reset(difficulty=DIFFICULTY)
+        result = await env.reset(difficulty=difficulty)
 
         for step in range(1, MAX_STEPS + 1):
             if result.done:
@@ -256,10 +261,18 @@ async def main() -> None:
 
         success = episode_succeeds(rewards)
     finally:
-        try:
-            await env.close()
-        finally:
-            log_end(success=success, steps=steps_taken, rewards=rewards)
+        log_end(success=success, steps=steps_taken, rewards=rewards)
+
+
+async def main() -> None:
+    llm_client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN or "missing-token")
+    env = await create_environment()
+
+    try:
+        for difficulty in EPISODE_DIFFICULTIES:
+            await run_episode(env=env, llm_client=llm_client, difficulty=difficulty)
+    finally:
+        await env.close()
 
 
 def run() -> None:

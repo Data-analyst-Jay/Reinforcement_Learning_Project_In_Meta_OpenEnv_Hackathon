@@ -48,7 +48,7 @@ class SmartIrrigationEnvironment(
 
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
-    MAX_STEPS = 20
+    MAX_STEPS = 5
     DEFAULT_WATER_BUDGET = 100.0
     IRRIGATION_EFFECTS = [0.0, 5.0, 10.0, 18.0]
     HUMIDITY_EFFECTS = [0.0, 1.0, 2.0, 3.0]
@@ -56,7 +56,7 @@ class SmartIrrigationEnvironment(
     WATER_COSTS = [0.0, 1.0, 2.0, 3.0]
     RAW_REWARD_MIN = -41.0
     RAW_REWARD_MAX = 14.0
-    REWARD_EPSILON = 0.01
+    REWARD_EPSILON = 0.02
 
     def __init__(self) -> None:
         """Initialize the environment and its random generator."""
