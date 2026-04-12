@@ -99,21 +99,25 @@ def log_step(
     )
 
 
-def log_end(success: bool, steps: int, rewards: List[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_value = ",".join(f"{reward:.2f}" for reward in rewards)
     print(
-        f"[END] success={str(success).lower()} steps={steps} rewards={rewards_value}",
+        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_value}",
         flush=True,
     )
 
 
-def episode_succeeds(rewards: List[float]) -> bool:
-    """Treat success as sustained episode quality, not merely nonnegative reward."""
+def episode_score(rewards: List[float]) -> float:
+    """Compute one overall task score from the episode's step rewards."""
     if not rewards:
-        return False
+        return 0.0
 
-    average_reward = sum(rewards) / len(rewards)
-    return average_reward >= SUCCESS_THRESHOLD
+    return sum(rewards) / len(rewards)
+
+
+def episode_succeeds(score: float) -> bool:
+    """Treat success as a threshold over the final task score."""
+    return score >= SUCCESS_THRESHOLD
 
 
 def max_available_action(observation: SmartIrrigationObservation) -> int:
@@ -229,6 +233,7 @@ async def run_episode(
     """Run one full task episode and emit a complete START/STEP/END log block."""
     rewards: List[float] = []
     steps_taken = 0
+    score = 0.0
     success = False
 
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME, difficulty=difficulty)
@@ -259,9 +264,10 @@ async def run_episode(
             if result.done:
                 break
 
-        success = episode_succeeds(rewards)
+        score = episode_score(rewards)
+        success = episode_succeeds(score)
     finally:
-        log_end(success=success, steps=steps_taken, rewards=rewards)
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 
 async def main() -> None:
