@@ -139,7 +139,7 @@ class SmartIrrigationState(State):
         description="Most recent irrigation action.",
     )
     max_steps: int = Field(
-        default=20,
+        default=5,
         ge=1,
         description="Maximum number of steps in one episode.",
     )
