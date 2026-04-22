@@ -30,10 +30,6 @@ class SmartIrrigationAction(Action):
 class SmartIrrigationObservation(Observation):
     """Current farm condition visible to the agent after each step."""
 
-    difficulty: Literal["easy", "medium", "difficult"] = Field(
-        default="easy",
-        description="Active irrigation scenario difficulty.",
-    )
     soil_moisture: float = Field(
         default=50.0,
         ge=0.0,

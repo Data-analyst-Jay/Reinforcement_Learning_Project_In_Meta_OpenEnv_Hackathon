@@ -80,7 +80,6 @@ class SmartIrrigationEnv(
         """Convert a server response into a typed irrigation observation."""
         obs_data = payload.get("observation", {})
         observation = SmartIrrigationObservation(
-            difficulty=obs_data.get("difficulty", "easy"),
             soil_moisture=obs_data.get("soil_moisture", 50.0),
             temperature=obs_data.get("temperature", 25.0),
             humidity=obs_data.get("humidity", 50.0),

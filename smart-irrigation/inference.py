@@ -173,7 +173,6 @@ def build_user_prompt(step: int, observation: SmartIrrigationObservation) -> str
     )
     return textwrap.dedent(
         f"""
-        Difficulty: {observation.difficulty}
         Step: {step}
         Soil moisture: {observation.soil_moisture:.2f}
         Temperature: {observation.temperature:.2f}

@@ -128,7 +128,7 @@ class SmartIrrigationEnvironment(
             reward=self._last_reward,
             done=False,
             metadata={
-                "message": f"Smart irrigation environment ready in {self._difficulty} mode.",
+                "message": "Smart irrigation environment ready.",
                 "day": self._state.step_count,
                 "total_water_used": self._total_water_used,
                 "water_remaining": self._water_remaining,
@@ -292,7 +292,6 @@ class SmartIrrigationEnvironment(
     ) -> SmartIrrigationObservation:
         """Create the outward-facing observation payload."""
         return SmartIrrigationObservation(
-            difficulty=self._difficulty,
             soil_moisture=self._soil_moisture,
             temperature=self._temperature,
             humidity=self._humidity,
