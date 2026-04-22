@@ -54,9 +54,10 @@ class SmartIrrigationEnvironment(
     HUMIDITY_EFFECTS = [0.0, 1.0, 2.0, 3.0]
     RAIN_AMOUNT = 8.0
     WATER_COSTS = [0.0, 1.0, 2.0, 3.0]
-    RAW_REWARD_MIN = -41.0
+    RAW_REWARD_MIN = -46.0
     RAW_REWARD_MAX = 14.0
     REWARD_EPSILON = 0.02
+    STRESS_PENALTY_WEIGHT = 0.45
 
     def __init__(self) -> None:
         """Initialize the environment and its random generator."""
@@ -72,6 +73,7 @@ class SmartIrrigationEnvironment(
         self._rainfall_forecast: int | None = 0
         self._rain_probability = 0.0
         self._crop_stage = 0.0
+        self._crop_stress_accumulation = 0.0
         self._water_remaining: float | None = None
         self._total_water_used = 0.0
         self._last_reward = self.REWARD_EPSILON
@@ -110,6 +112,7 @@ class SmartIrrigationEnvironment(
         self._temperature = round(self._rng.uniform(22.0, 32.0), 2)
         self._humidity = round(self._rng.uniform(45.0, 70.0), 2)
         self._crop_stage = 0.0
+        self._crop_stress_accumulation = 0.0
         self._water_remaining = (
             round(
                 self.DEFAULT_WATER_BUDGET if water_budget is None else water_budget,
@@ -133,6 +136,7 @@ class SmartIrrigationEnvironment(
                 "total_water_used": self._total_water_used,
                 "water_remaining": self._water_remaining,
                 "rain_probability": self._rain_probability,
+                "crop_stress_accumulation": self._crop_stress_accumulation,
             },
         )
 
@@ -179,10 +183,20 @@ class SmartIrrigationEnvironment(
 
         self._total_water_used = round(self._total_water_used + irrigation_added, 2)
         self._last_irrigation_level = irrigation_level
+        stress_delta = self._compute_crop_stress_delta(action=irrigation_level)
+        self._crop_stress_accumulation = round(
+            self._clamp(
+                self._crop_stress_accumulation + stress_delta,
+                0.0,
+                100.0,
+            ),
+            2,
+        )
 
         raw_reward = self._compute_reward(
             moisture=self._soil_moisture,
             action=irrigation_level,
+            stress_delta=stress_delta,
         )
         self._last_reward = round(self._normalize_reward(raw_reward), 4)
 
@@ -195,24 +209,33 @@ class SmartIrrigationEnvironment(
         self._update_weather()
         self._update_state()
 
+        metadata = {
+            "day": self._state.step_count,
+            "requested_irrigation_level": requested_irrigation_level,
+            "applied_irrigation_level": irrigation_level,
+            "action_adjusted": irrigation_level != requested_irrigation_level,
+            "irrigation_added": irrigation_added,
+            "water_cost": water_cost,
+            "actual_rainfall": actual_rainfall,
+            "evaporation": round(evaporation, 2),
+            "crop_usage": round(crop_usage, 2),
+            "crop_stress_delta": round(stress_delta, 2),
+            "crop_stress_accumulation": self._crop_stress_accumulation,
+            "total_water_used": self._total_water_used,
+            "water_remaining": self._water_remaining,
+            "raw_reward": round(raw_reward, 2),
+            "normalized_reward": self._last_reward,
+        }
+        if done:
+            metadata["final_crop_health"] = round(
+                100.0 - self._crop_stress_accumulation,
+                2,
+            )
+
         return self._build_observation(
             reward=self._last_reward,
             done=done,
-            metadata={
-                "day": self._state.step_count,
-                "requested_irrigation_level": requested_irrigation_level,
-                "applied_irrigation_level": irrigation_level,
-                "action_adjusted": irrigation_level != requested_irrigation_level,
-                "irrigation_added": irrigation_added,
-                "water_cost": water_cost,
-                "actual_rainfall": actual_rainfall,
-                "evaporation": round(evaporation, 2),
-                "crop_usage": round(crop_usage, 2),
-                "total_water_used": self._total_water_used,
-                "water_remaining": self._water_remaining,
-                "raw_reward": round(raw_reward, 2),
-                "normalized_reward": self._last_reward,
-            },
+            metadata=metadata,
         )
 
     @property
@@ -220,7 +243,7 @@ class SmartIrrigationEnvironment(
         """Return the hidden environment state."""
         return self._state
 
-    def _compute_reward(self, moisture: float, action: int) -> float:
+    def _compute_reward(self, moisture: float, action: int, stress_delta: float) -> float:
         """Reward that balances crop health, water savings, and scenario goals."""
         reward = 0.0
 
@@ -257,7 +280,52 @@ class SmartIrrigationEnvironment(
         ):
             reward -= 5.0
 
+        reward -= stress_delta * self.STRESS_PENALTY_WEIGHT
+
         return reward
+
+    def _compute_crop_stress_delta(self, action: int) -> float:
+        """Compute the irreversible crop stress added by the current step."""
+        stress_delta = 0.0
+
+        moisture = self._soil_moisture
+        if 40.0 <= moisture <= 70.0:
+            stress_delta += 0.0
+        elif 35.0 <= moisture < 40.0 or 70.0 < moisture <= 75.0:
+            stress_delta += 0.4
+        elif 30.0 <= moisture < 35.0 or 75.0 < moisture <= 80.0:
+            stress_delta += 0.9
+        elif 20.0 <= moisture < 30.0 or 80.0 < moisture <= 90.0:
+            stress_delta += 1.6
+        else:
+            stress_delta += 2.4
+
+        temperature = self._temperature
+        if 22.0 <= temperature <= 32.0:
+            stress_delta += 0.0
+        elif 20.0 <= temperature < 22.0 or 32.0 < temperature <= 35.0:
+            stress_delta += 0.3
+        elif 18.0 <= temperature < 20.0 or 35.0 < temperature <= 38.0:
+            stress_delta += 0.7
+        else:
+            stress_delta += 1.2
+
+        humidity = self._humidity
+        if 45.0 <= humidity <= 75.0:
+            stress_delta += 0.0
+        elif 35.0 <= humidity < 45.0 or 75.0 < humidity <= 85.0:
+            stress_delta += 0.2
+        elif 25.0 <= humidity < 35.0 or 85.0 < humidity <= 95.0:
+            stress_delta += 0.5
+        else:
+            stress_delta += 0.8
+
+        if (self._rain_probability >= 0.7 or self._rainfall_forecast == 1) and action >= 2:
+            stress_delta += 0.15
+        elif moisture < 35.0 and temperature > 30.0 and action == 0:
+            stress_delta += 0.15
+
+        return round(stress_delta, 2)
 
     def _normalize_reward(self, raw_reward: float) -> float:
         """Map the raw reward into a strict interior range for graders and logs."""
@@ -298,6 +366,7 @@ class SmartIrrigationEnvironment(
             rainfall_forecast=self._rainfall_forecast,
             rain_probability=self._rain_probability,
             crop_stage=self._crop_stage,
+            crop_stress_accumulation=self._crop_stress_accumulation,
             water_remaining=self._water_remaining,
             reward=reward,
             done=done,
@@ -373,6 +442,7 @@ class SmartIrrigationEnvironment(
         self._state.rainfall_forecast = self._rainfall_forecast
         self._state.rain_probability = self._rain_probability
         self._state.crop_stage = self._crop_stage
+        self._state.crop_stress_accumulation = self._crop_stress_accumulation
         self._state.water_remaining = self._water_remaining
         self._state.total_water_used = self._total_water_used
         self._state.last_reward = self._last_reward

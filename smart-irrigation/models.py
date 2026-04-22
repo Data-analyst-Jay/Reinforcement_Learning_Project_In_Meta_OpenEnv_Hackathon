@@ -64,6 +64,12 @@ class SmartIrrigationObservation(Observation):
         le=1.0,
         description="Crop growth stage from 0.0 (early) to 1.0 (late).",
     )
+    crop_stress_accumulation: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=100.0,
+        description="Irreversible accumulated crop stress on a 0 to 100 scale.",
+    )
     water_remaining: float | None = Field(
         default=None,
         ge=0.0,
@@ -111,6 +117,12 @@ class SmartIrrigationState(State):
         ge=0.0,
         le=1.0,
         description="Crop growth stage from 0.0 (early) to 1.0 (late).",
+    )
+    crop_stress_accumulation: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=100.0,
+        description="Irreversible accumulated crop stress on a 0 to 100 scale.",
     )
     water_remaining: float | None = Field(
         default=None,
