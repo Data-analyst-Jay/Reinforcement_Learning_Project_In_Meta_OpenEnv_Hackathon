@@ -17,6 +17,7 @@ in order: easy, medium, and hard (canonical server name: difficult).
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import textwrap
 from typing import List, Optional
@@ -40,6 +41,8 @@ TASK_NAME = os.getenv("TASK_NAME", "smart-irrigation")
 BENCHMARK = os.getenv("BENCHMARK", "smart-irrigation")
 MAX_STEPS = int(os.getenv("MAX_STEPS", "5"))
 SUCCESS_THRESHOLD = float(os.getenv("SUCCESS_THRESHOLD", "0.80"))
+SCORE_SIGMOID_SCALE = float(os.getenv("SCORE_SIGMOID_SCALE", "3.0"))
+SCORE_EPSILON = 1e-6
 ACTION_WATER_COSTS = [0, 1, 2, 3]
 
 SYSTEM_PROMPT = textwrap.dedent(
@@ -90,29 +93,52 @@ def log_start(task: str, env: str, model: str, difficulty: str) -> None:
 
 
 def log_step(
-    step: int, action: str, reward: float, done: bool, error: Optional[str]
+    step: int,
+    action: str,
+    crop_component: float,
+    decision_component: float,
+    total_reward: float,
+    done: bool,
 ) -> None:
-    error_value = error if error else "null"
     print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_value}",
+        f"[STEP] step={step} action={action} crop_component={crop_component:.2f} decision_component={decision_component:.2f} total_reward={total_reward:.2f} done={str(done).lower()}",
         flush=True,
     )
 
 
-def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
-    rewards_value = ",".join(f"{reward:.2f}" for reward in rewards)
+def log_end(
+    success: bool,
+    steps: int,
+    score: float,
+    total_rewards: List[float],
+    crop_health: Optional[float] = None,
+) -> None:
+    total_rewards_value = ",".join(
+        f"{total_reward:.2f}" for total_reward in total_rewards
+    )
+    crop_health_value = (
+        f"{crop_health:.2f}" if crop_health is not None else "null"
+    )
     print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_value}",
+        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} total_rewards={total_rewards_value} crop_health={crop_health_value}",
         flush=True,
     )
 
 
-def episode_score(rewards: List[float]) -> float:
-    """Compute one overall task score from the episode's step rewards."""
-    if not rewards:
-        return 0.0
+def episode_score(total_rewards: List[float]) -> float:
+    """Map mean total reward into a human-friendly score in the (0, 1) range."""
+    if not total_rewards:
+        return 0.5
 
-    return sum(rewards) / len(rewards)
+    raw_score = sum(total_rewards) / len(total_rewards)
+    scaled_score = raw_score / SCORE_SIGMOID_SCALE
+    if scaled_score >= 0.0:
+        exp_term = math.exp(-scaled_score)
+        score = 1.0 / (1.0 + exp_term)
+    else:
+        exp_term = math.exp(scaled_score)
+        score = exp_term / (1.0 + exp_term)
+    return min(max(score, SCORE_EPSILON), 1.0 - SCORE_EPSILON)
 
 
 def episode_succeeds(score: float) -> bool:
@@ -230,10 +256,11 @@ async def run_episode(
     difficulty: str,
 ) -> None:
     """Run one full task episode and emit a complete START/STEP/END log block."""
-    rewards: List[float] = []
+    total_rewards: List[float] = []
     steps_taken = 0
-    score = 0.0
+    score = episode_score(total_rewards)
     success = False
+    crop_health: Optional[float] = None
 
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME, difficulty=difficulty)
 
@@ -248,25 +275,39 @@ async def run_episode(
             action = SmartIrrigationAction(irrigation_level=irrigation_level)
             result = await env.step(action)
 
-            reward = float(result.reward or 0.0)
-            rewards.append(reward)
+            total_reward = float(result.observation.total_reward)
+            total_rewards.append(total_reward)
             steps_taken = step
 
             log_step(
                 step=step,
                 action=f"irrigation_level={irrigation_level}",
-                reward=reward,
+                crop_component=float(result.observation.crop_component),
+                decision_component=float(result.observation.decision_component),
+                total_reward=total_reward,
                 done=result.done,
-                error=None,
             )
 
             if result.done:
                 break
 
-        score = episode_score(rewards)
+        score = episode_score(total_rewards)
         success = episode_succeeds(score)
+        final_observation = result.observation
+        crop_health = final_observation.metadata.get("final_crop_health")
+        if crop_health is None:
+            crop_health = round(
+                100.0 - final_observation.crop_stress_accumulation,
+                2,
+            )
     finally:
-        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+        log_end(
+            success=success,
+            steps=steps_taken,
+            score=score,
+            total_rewards=total_rewards,
+            crop_health=crop_health,
+        )
 
 
 async def main() -> None:

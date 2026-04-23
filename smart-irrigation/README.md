@@ -57,15 +57,21 @@ canonical `difficult` mode expected by the server.
 
 ## Reward Logic
 
-The reward:
-- gives a positive score when soil moisture stays in the healthy range
-- penalizes under-watering and over-watering
-- penalizes unnecessary water usage
-- penalizes irrigating when rain is forecast or highly probable
-- adds a water-budget penalty in the `medium` and `difficult` scenarios
+The environment now exposes an explainable hybrid reward with three values:
+- `crop_component`: signed crop-safety signal driven by moisture quality and stress
+- `decision_component`: signed irrigation-decision signal driven by water cost, rain awareness, and budget awareness
+- `total_reward`: the signed sum of the two components
 
-All rewards are linearly normalized into the `0.0` to `1.0` range before
-being returned to the agent.
+The reward system:
+- keeps the `40` to `70` moisture range as the healthy target band
+- uses smoother penalties outside the target band
+- keeps stronger penalties for severe under-watering and over-watering
+- penalizes unnecessary water usage
+- rewards withholding irrigation when rain is forecast or highly probable
+- adds water-budget pressure in the `medium` and `difficult` scenarios without over-penalizing rescue irrigation
+
+The inference `score` is only an episode-level interpretation metric:
+`score = sigmoid(mean(total_reward) / 3.0)`, clamped strictly inside `(0, 1)`.
 
 ## Run Locally
 
@@ -117,7 +123,7 @@ Verified in this repository:
 - `inference.py` exists at the project root.
 - The inference client uses the OpenAI client.
 - Structured `[START]`, `[STEP]`, and `[END]` logs are emitted.
-- Rewards are normalized to the `0.0` to `1.0` range.
+- Reward outputs are signed and expose crop, decision, and total components.
 - `openenv.yaml` and `Dockerfile` are present.
 - HF Space deployment returning HTTP 200 and responding to `reset()`.
 - Docker build in the submission environment.

@@ -15,6 +15,7 @@ evaporation, and crop usage.
 from __future__ import annotations
 
 import random
+from dataclasses import dataclass
 from typing import Any, Literal, Optional
 from uuid import uuid4
 
@@ -37,6 +38,20 @@ except ImportError:
 DifficultyName = Literal["easy", "medium", "difficult"]
 
 
+@dataclass(frozen=True)
+class RewardBreakdown:
+    """Explainable reward parts for one irrigation step."""
+
+    crop_component: float
+    decision_component: float
+    total_reward: float
+    moisture_term: float
+    stress_penalty: float
+    water_cost_penalty: float
+    rain_adjustment: float
+    budget_adjustment: float
+
+
 class SmartIrrigationEnvironment(
     Environment[
         SmartIrrigationAction,
@@ -54,10 +69,11 @@ class SmartIrrigationEnvironment(
     HUMIDITY_EFFECTS = [0.0, 1.0, 2.0, 3.0]
     RAIN_AMOUNT = 8.0
     WATER_COSTS = [0.0, 1.0, 2.0, 3.0]
-    RAW_REWARD_MIN = -46.0
-    RAW_REWARD_MAX = 14.0
-    REWARD_EPSILON = 0.02
-    STRESS_PENALTY_WEIGHT = 0.45
+    STRESS_PENALTY_WEIGHT = 1.4
+    HEALTHY_MOISTURE_MIN = 40.0
+    HEALTHY_MOISTURE_MAX = 70.0
+    SEVERE_DRY_THRESHOLD = 30.0
+    SEVERE_WET_THRESHOLD = 80.0
 
     def __init__(self) -> None:
         """Initialize the environment and its random generator."""
@@ -76,7 +92,10 @@ class SmartIrrigationEnvironment(
         self._crop_stress_accumulation = 0.0
         self._water_remaining: float | None = None
         self._total_water_used = 0.0
-        self._last_reward = self.REWARD_EPSILON
+        self._last_crop_component = 0.0
+        self._last_decision_component = 0.0
+        self._last_total_reward = 0.0
+        self._last_reward = 0.0
         self._last_irrigation_level = 0
         self._update_state()
 
@@ -122,13 +141,19 @@ class SmartIrrigationEnvironment(
             else None
         )
         self._total_water_used = 0.0
-        self._last_reward = self.REWARD_EPSILON
+        self._last_crop_component = 0.0
+        self._last_decision_component = 0.0
+        self._last_total_reward = 0.0
+        self._last_reward = 0.0
         self._last_irrigation_level = 0
         self._set_rain_signal()
         self._update_state()
 
         return self._build_observation(
-            reward=self._last_reward,
+            reward=self._last_total_reward,
+            crop_component=self._last_crop_component,
+            decision_component=self._last_decision_component,
+            total_reward=self._last_total_reward,
             done=False,
             metadata={
                 "message": "Smart irrigation environment ready.",
@@ -137,6 +162,14 @@ class SmartIrrigationEnvironment(
                 "water_remaining": self._water_remaining,
                 "rain_probability": self._rain_probability,
                 "crop_stress_accumulation": self._crop_stress_accumulation,
+                "crop_component": self._last_crop_component,
+                "decision_component": self._last_decision_component,
+                "total_reward": self._last_total_reward,
+                "moisture_term": 0.0,
+                "stress_penalty": 0.0,
+                "water_cost_penalty": 0.0,
+                "rain_adjustment": 0.0,
+                "budget_adjustment": 0.0,
             },
         )
 
@@ -193,12 +226,15 @@ class SmartIrrigationEnvironment(
             2,
         )
 
-        raw_reward = self._compute_reward(
+        reward_breakdown = self._compute_reward(
             moisture=self._soil_moisture,
             action=irrigation_level,
             stress_delta=stress_delta,
         )
-        self._last_reward = round(self._normalize_reward(raw_reward), 4)
+        self._last_crop_component = round(reward_breakdown.crop_component, 4)
+        self._last_decision_component = round(reward_breakdown.decision_component, 4)
+        self._last_total_reward = round(reward_breakdown.total_reward, 4)
+        self._last_reward = self._last_total_reward
 
         done = self._state.step_count >= self.MAX_STEPS
         self._crop_stage = round(
@@ -223,8 +259,14 @@ class SmartIrrigationEnvironment(
             "crop_stress_accumulation": self._crop_stress_accumulation,
             "total_water_used": self._total_water_used,
             "water_remaining": self._water_remaining,
-            "raw_reward": round(raw_reward, 2),
-            "normalized_reward": self._last_reward,
+            "crop_component": self._last_crop_component,
+            "decision_component": self._last_decision_component,
+            "total_reward": self._last_total_reward,
+            "moisture_term": round(reward_breakdown.moisture_term, 4),
+            "stress_penalty": round(reward_breakdown.stress_penalty, 4),
+            "water_cost_penalty": round(reward_breakdown.water_cost_penalty, 4),
+            "rain_adjustment": round(reward_breakdown.rain_adjustment, 4),
+            "budget_adjustment": round(reward_breakdown.budget_adjustment, 4),
         }
         if done:
             metadata["final_crop_health"] = round(
@@ -233,7 +275,10 @@ class SmartIrrigationEnvironment(
             )
 
         return self._build_observation(
-            reward=self._last_reward,
+            reward=self._last_total_reward,
+            crop_component=self._last_crop_component,
+            decision_component=self._last_decision_component,
+            total_reward=self._last_total_reward,
             done=done,
             metadata=metadata,
         )
@@ -243,46 +288,104 @@ class SmartIrrigationEnvironment(
         """Return the hidden environment state."""
         return self._state
 
-    def _compute_reward(self, moisture: float, action: int, stress_delta: float) -> float:
-        """Reward that balances crop health, water savings, and scenario goals."""
-        reward = 0.0
+    def _compute_reward(
+        self,
+        moisture: float,
+        action: int,
+        stress_delta: float,
+    ) -> RewardBreakdown:
+        """Return a signed reward split into crop and decision components."""
+        crop_component, moisture_term, stress_penalty = self._compute_crop_component(
+            moisture=moisture,
+            stress_delta=stress_delta,
+        )
+        (
+            decision_component,
+            water_cost_penalty,
+            rain_adjustment,
+            budget_adjustment,
+        ) = self._compute_decision_component(
+            action=action,
+            moisture=moisture,
+        )
+        total_reward = 0.65 * crop_component + 0.35 * decision_component
+        return RewardBreakdown(
+            crop_component=crop_component,
+            decision_component=decision_component,
+            total_reward=total_reward,
+            moisture_term=moisture_term,
+            stress_penalty=stress_penalty,
+            water_cost_penalty=water_cost_penalty,
+            rain_adjustment=rain_adjustment,
+            budget_adjustment=budget_adjustment,
+        )
 
-        if 40.0 <= moisture <= 70.0:
-            reward += 10.0
-        elif moisture < 40.0:
-            reward -= (40.0 - moisture) * 0.5
+    def _compute_crop_component(
+        self,
+        moisture: float,
+        stress_delta: float,
+    ) -> tuple[float, float, float]:
+        """Score crop safety using a safe moisture band with smooth falloff."""
+        if self.HEALTHY_MOISTURE_MIN <= moisture <= self.HEALTHY_MOISTURE_MAX:
+            moisture_term = 6.0
+        elif moisture < self.HEALTHY_MOISTURE_MIN:
+            distance_from_band = self.HEALTHY_MOISTURE_MIN - moisture
+            moisture_term = 6.0 - 0.32 * (distance_from_band**1.25)
         else:
-            reward -= (moisture - 70.0) * 0.7
+            distance_from_band = moisture - self.HEALTHY_MOISTURE_MAX
+            moisture_term = 6.0 - 0.38 * (distance_from_band**1.25)
 
-        if moisture < 30.0:
-            reward -= 10.0
+        if moisture < self.SEVERE_DRY_THRESHOLD:
+            moisture_term -= 2.5 + 0.25 * (self.SEVERE_DRY_THRESHOLD - moisture)
+        elif moisture > self.SEVERE_WET_THRESHOLD:
+            moisture_term -= 2.0 + 0.25 * (moisture - self.SEVERE_WET_THRESHOLD)
 
-        if moisture > 80.0:
-            reward -= 8.0
+        stress_penalty = -stress_delta * self.STRESS_PENALTY_WEIGHT
+        crop_component = moisture_term + stress_penalty
+        return crop_component, moisture_term, stress_penalty
 
-        reward -= self.WATER_COSTS[action]
+    def _compute_decision_component(
+        self,
+        action: int,
+        moisture: float,
+    ) -> tuple[float, float, float, float]:
+        """Score the irrigation decision quality given rain, cost, and budget."""
+        water_cost_penalty = -0.6 * self.WATER_COSTS[action]
+        rain_adjustment = 0.0
+        budget_adjustment = 0.0
 
         if self._difficulty == "difficult":
-            if self._rain_probability > 0.7 and action > 0:
-                reward -= 4.0
-            elif self._rain_probability > 0.7 and action == 0:
-                reward += 4.0
-        elif self._rainfall_forecast == 1 and action > 0:
-            reward -= 3.0
-        elif self._rainfall_forecast == 1 and action == 0:
-            reward += 3.0
+            if self._rain_probability > 0.7:
+                if action == 0:
+                    rain_adjustment = 2.2
+                else:
+                    rain_adjustment = -0.2 - (0.8 * action)
+        elif self._rainfall_forecast == 1:
+            if action == 0:
+                rain_adjustment = 1.8
+            else:
+                rain_adjustment = -0.2 - (0.6 * action)
 
         if (
             self._uses_water_budget()
             and self._water_remaining is not None
             and self._water_remaining < 10.0
-            and moisture > 60.0
+            and moisture >= 55.0
         ):
-            reward -= 5.0
+            if action == 0:
+                budget_adjustment = 0.8
+            else:
+                budget_adjustment = -0.6 * action
 
-        reward -= stress_delta * self.STRESS_PENALTY_WEIGHT
-
-        return reward
+        decision_component = (
+            water_cost_penalty + rain_adjustment + budget_adjustment
+        )
+        return (
+            decision_component,
+            water_cost_penalty,
+            rain_adjustment,
+            budget_adjustment,
+        )
 
     def _compute_crop_stress_delta(self, action: int) -> float:
         """Compute the irreversible crop stress added by the current step."""
@@ -327,15 +430,6 @@ class SmartIrrigationEnvironment(
 
         return round(stress_delta, 2)
 
-    def _normalize_reward(self, raw_reward: float) -> float:
-        """Map the raw reward into a strict interior range for graders and logs."""
-        return self._clamp(
-            (raw_reward - self.RAW_REWARD_MIN)
-            / (self.RAW_REWARD_MAX - self.RAW_REWARD_MIN),
-            self.REWARD_EPSILON,
-            1.0 - self.REWARD_EPSILON,
-        )
-
     def _update_weather(self) -> None:
         """Generate the next step's weather values."""
         temperature_shift = self._rng.uniform(-2.0, 2.0)
@@ -355,6 +449,9 @@ class SmartIrrigationEnvironment(
         self,
         *,
         reward: float,
+        crop_component: float,
+        decision_component: float,
+        total_reward: float,
         done: bool,
         metadata: dict[str, Any],
     ) -> SmartIrrigationObservation:
@@ -368,6 +465,9 @@ class SmartIrrigationEnvironment(
             crop_stage=self._crop_stage,
             crop_stress_accumulation=self._crop_stress_accumulation,
             water_remaining=self._water_remaining,
+            crop_component=crop_component,
+            decision_component=decision_component,
+            total_reward=total_reward,
             reward=reward,
             done=done,
             metadata=metadata,
@@ -445,7 +545,10 @@ class SmartIrrigationEnvironment(
         self._state.crop_stress_accumulation = self._crop_stress_accumulation
         self._state.water_remaining = self._water_remaining
         self._state.total_water_used = self._total_water_used
-        self._state.last_reward = self._last_reward
+        self._state.last_reward = self._last_total_reward
+        self._state.last_crop_component = self._last_crop_component
+        self._state.last_decision_component = self._last_decision_component
+        self._state.last_total_reward = self._last_total_reward
         self._state.last_irrigation_level = self._last_irrigation_level
         self._state.max_steps = self.MAX_STEPS
 

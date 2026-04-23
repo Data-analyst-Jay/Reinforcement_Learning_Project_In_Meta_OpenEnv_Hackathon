@@ -75,6 +75,18 @@ class SmartIrrigationObservation(Observation):
         ge=0.0,
         description="Remaining irrigation budget for medium and difficult modes.",
     )
+    crop_component: float = Field(
+        default=0.0,
+        description="Signed crop-safety reward component from the most recent step.",
+    )
+    decision_component: float = Field(
+        default=0.0,
+        description="Signed water-decision reward component from the most recent step.",
+    )
+    total_reward: float = Field(
+        default=0.0,
+        description="Signed total reward from the most recent step.",
+    )
 
 
 class SmartIrrigationState(State):
@@ -136,9 +148,19 @@ class SmartIrrigationState(State):
     )
     last_reward: float = Field(
         default=0.0,
-        ge=0.0,
-        le=1.0,
-        description="Normalized reward from the most recent step on a 0 to 1 scale.",
+        description="Compatibility alias for the most recent step's total_reward.",
+    )
+    last_crop_component: float = Field(
+        default=0.0,
+        description="Most recent signed crop-safety reward component.",
+    )
+    last_decision_component: float = Field(
+        default=0.0,
+        description="Most recent signed water-decision reward component.",
+    )
+    last_total_reward: float = Field(
+        default=0.0,
+        description="Most recent signed total reward.",
     )
     last_irrigation_level: int = Field(
         default=0,
