@@ -2,3 +2,4 @@
 .venv/
 smart_irrigation.egg-info/
 __pycache__/
+tests/
