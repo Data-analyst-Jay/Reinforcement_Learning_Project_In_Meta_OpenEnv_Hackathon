@@ -3,3 +3,5 @@
 smart_irrigation.egg-info/
 __pycache__/
 tests/
+dataset_generation.py
+datasets_sft
