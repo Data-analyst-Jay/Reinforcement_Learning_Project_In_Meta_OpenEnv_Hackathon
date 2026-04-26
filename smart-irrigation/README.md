@@ -155,3 +155,14 @@ smart-irrigation/
 - For easy task: [0.91,0.98,0.91,0.75,0.64,0.50,0.44,0.42,0.42,0.36,0.35,0.35,0.29,0.27,0.27,0.32,0.33,0.34,0.40,0.46]
 - For medium task: [0.91,0.91,0.91,0.91,0.98,0.98,0.91,0.91,0.91,0.71,0.69,0.71,0.63,0.62,0.60,0.49,0.45,0.46,0.67,0.70]
 - For difficult task: [0.91,0.91,0.71,0.43,0.38,0.41,0.45,0.64,0.37,0.34,0.40,0.47,0.68,0.42,0.65,0.39,0.62,0.45,0.67,0.93]
+
+## Here are the key links:
+- smart-irrigation-environment: https://huggingface.co/spaces/Gehlot-Jay/smart-irrigation-environment
+- Hugging Face training space: https://huggingface.co/spaces/Gehlot-Jay/smart-irrigation-ppo
+- Post-trained model: https://huggingface.co/Gehlot-Jay/smart-irrigation-model
+
+## Training logs and curves:
+- You can easily get the the training evidence from the HF smart-irrigation-ppo space
+
+## Here is the Colab URL of Supervised Fine Tuning of the Model:
+- https://colab.research.google.com/drive/15u-daSaL1CSi5Iec_FYOGEj-1ay4cztV?usp=sharing
