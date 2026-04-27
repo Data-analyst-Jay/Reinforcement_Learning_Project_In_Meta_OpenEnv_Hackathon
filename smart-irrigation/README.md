@@ -164,5 +164,9 @@ smart-irrigation/
 ## Training logs and curves:
 - You can easily get the the training evidence from the HF smart-irrigation-ppo space
 
+## Here are the results of SFT training on 75k steps
+-- ![Rewards Vs Steps](smart-irrigation\training_curves\reward_vs_steps.png)
+-- ![Success rate](smart-irrigation\training_curves\success rate.png)
+
 ## Here is the Colab URL of Supervised Fine Tuning of the Model:
 - https://colab.research.google.com/drive/15u-daSaL1CSi5Iec_FYOGEj-1ay4cztV?usp=sharing
